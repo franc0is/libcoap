@@ -148,20 +148,19 @@ coap_free_context(coap_context_t *context) {
 
   coap_delete_all(context->sendqueue);
 
-#ifdef WITH_LWIP
-  context->sendqueue = NULL;
-  coap_retransmittimer_restart(context);
+  coap_free_timer(context->retransmit_timer);
+#ifndef WITHOUT_OBSERVE
+  coap_free_timer(context->notify_timer);
 #endif
 
   coap_delete_all_resources(context);
 
   coap_free_endpoint(context->endpoint);
-#ifndef WITH_CONTIKI
-  coap_free_type(COAP_CONTEXT, context);
-#endif/* not WITH_CONTIKI */
 #ifdef WITH_CONTIKI
   memset(&the_coap_context, 0, sizeof(coap_context_t));
   initialized = 0;
+#else
+  coap_free_type(COAP_CONTEXT, context);
 #endif /* WITH_CONTIKI */
 }
 

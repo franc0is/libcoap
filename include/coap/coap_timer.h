@@ -12,6 +12,8 @@ typedef void (*CoapTimerCallback)(void *data);
 
 coap_timer_t *coap_new_timer(CoapTimerCallback cb, void *data);
 
+void coap_free_timer(coap_timer_t *timer);
+
 void coap_timer_set(coap_timer_t *timer, coap_tick_t num_ticks);
 
 void coap_timer_is_set(coap_timer_t *timer);
