@@ -1,3 +1,6 @@
+#ifndef _PLATFORM_IO_H_
+#define _PLATFORM_IO_H_
+
 #include <lwip/udp.h>
 
 /*
@@ -15,9 +18,19 @@ struct coap_packet_t {
   uint16_t srcport;
 };
 
+typedef struct coap_endpoint_t {
+  struct udp_pcb *pcb;
+
+  coap_address_t addr; /**< local interface address */
+  int ifindex;
+  int flags;
+} coap_endpoint_t;
+
 /**
  * Get the pbuf of a packet. The caller takes over responsibility for freeing
  * the pbuf.
  */
 struct pbuf *coap_packet_extract_pbuf(coap_packet_t *packet);
 
+
+#endif /* _PLATFORM_IO_H_ */

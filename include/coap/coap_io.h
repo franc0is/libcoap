@@ -47,27 +47,6 @@ typedef struct coap_packet_t coap_packet_t;
 
 struct coap_context_t;
 
-/**
- * Abstraction of virtual endpoint that can be attached to coap_context_t. The
- * tuple (handle, addr) must uniquely identify this endpoint.
- */
-typedef struct coap_endpoint_t {
-#if defined(WITH_POSIX) || defined(WITH_CONTIKI)
-  union {
-    int fd;       /**< on POSIX systems */
-    void *conn;   /**< opaque connection (e.g. uip_conn in Contiki) */
-  } handle;       /**< opaque handle to identify this endpoint */
-#endif /* WITH_POSIX or WITH_CONTIKI */
-
-#ifdef WITH_LWIP
-  struct udp_pcb *pcb;
-#endif /* WITH_LWIP */
-
-  coap_address_t addr; /**< local interface address */
-  int ifindex;
-  int flags;
-} coap_endpoint_t;
-
 #define COAP_ENDPOINT_NOSEC 0x00
 #define COAP_ENDPOINT_DTLS  0x01
 
