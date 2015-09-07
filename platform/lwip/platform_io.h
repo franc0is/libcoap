@@ -3,6 +3,14 @@
 
 #include <lwip/udp.h>
 
+typedef struct coap_endpoint_t {
+  struct udp_pcb *pcb;
+
+  coap_address_t addr; /**< local interface address */
+  int ifindex;
+  int flags;
+} coap_endpoint_t;
+
 /*
  * This is only included in coap_io.h instead of .c in order to be available for
  * sizeof in lwippools.h.
@@ -17,14 +25,6 @@ struct coap_packet_t {
   const coap_endpoint_t *local_interface;
   uint16_t srcport;
 };
-
-typedef struct coap_endpoint_t {
-  struct udp_pcb *pcb;
-
-  coap_address_t addr; /**< local interface address */
-  int ifindex;
-  int flags;
-} coap_endpoint_t;
 
 /**
  * Get the pbuf of a packet. The caller takes over responsibility for freeing
