@@ -502,6 +502,7 @@ coap_send_confirmed(coap_context_t *context,
 
 coap_tid_t
 coap_retransmit(coap_context_t *context, coap_queue_t *node) {
+
   if (!context || !node)
     return COAP_INVALID_TID;
 

@@ -33,46 +33,41 @@
 #include "net.h"
 #include "coap_timer.h"
 
-#if defined(WITH_POSIX)
-
-time_t clock_offset;
-
-#elif defined(WITH_CONTIKI)
-
-clock_time_t clock_offset;
-
-#endif /* WITH_CONTIKI */
-
-
 #ifdef WITH_CONTIKI // TODO Should be more abstracted. E.g. CONTEXT_SINGLETON
 unsigned char initialized = 0;
 coap_context_t the_coap_context;
 #endif
 
+#ifndef WITHOUT_OBSERVE
 static void notify_timer_cb(void *data) {
   coap_context_t *c = data;
   coap_check_notify(c);
   coap_timer_set(c->notify_timer, COAP_RESOURCE_CHECK_TIME * COAP_TICKS_PER_SECOND);
 }
+#endif
 
 // TODO this should probably be in its own file ... coap_retransmit.c?
 static void retransmit_timer_cb(void *data) {
   coap_context_t *c = data;
   coap_queue_t *nextpdu = coap_peek_next(c);
-  coap_tick_t now;
 
+  coap_tick_t now;
   coap_ticks(&now);
+
   while (nextpdu && nextpdu->t <= now) {
     coap_retransmit(c, coap_pop_next(c));
     nextpdu = coap_peek_next(c);
   }
 
-  coap_timer_set(c->retransmit_timer, nextpdu ? nextpdu->t - now : 0xFFFF);
+  if (nextpdu) {
+    coap_timer_set(c->retransmit_timer, nextpdu->t - now);
+  }
 }
 
 coap_context_t *
 coap_new_context(
   const coap_address_t *listen_addr) {
+  coap_timer_init();
 #ifndef WITH_CONTIKI
   coap_context_t *c = coap_malloc_type(COAP_CONTEXT, sizeof( coap_context_t ) );
 #endif /* not WITH_CONTIKI */
@@ -89,15 +84,10 @@ coap_new_context(
   }
 
   coap_clock_init();
-#ifdef WITH_LWIP
-  prng_init(LWIP_RAND());
-#endif /* WITH_LWIP */
-#ifdef WITH_CONTIKI
-  prng_init((ptrdiff_t)listen_addr ^ clock_offset);
-#endif /* WITH_LWIP */
-#ifdef WITH_POSIX
-  prng_init((unsigned long)listen_addr ^ clock_offset);
-#endif /* WITH_POSIX */
+
+  coap_tick_t now;
+  coap_ticks(&now);
+  prng_init((ptrdiff_t)listen_addr ^ now);
 
 #ifndef WITH_CONTIKI
   if (!c) {
@@ -138,10 +128,6 @@ coap_new_context(
     goto onerror;
   }
 
-#ifdef WITH_POSIX
-  c->sockfd = c->endpoint->handle.fd;
-#endif /* WITH_POSIX */
-
   c->network_send = coap_network_send;
   c->network_read = coap_network_read;
 
@@ -150,9 +136,7 @@ coap_new_context(
   coap_timer_set(c->notify_timer, COAP_RESOURCE_CHECK_TIME * COAP_TICKS_PER_SECOND);
 #endif /* WITHOUT_OBSERVE */
 
-  /* the retransmit timer must be initialized to some large value */
   c->retransmit_timer = coap_new_timer(retransmit_timer_cb, (void *)c);
-  coap_timer_set(c->retransmit_timer, 0xFFFF);
 
   return c;
 

@@ -109,6 +109,7 @@ WARNING_CFLAGS="\
 -Wswitch-default \
 -Wswitch-enum \
 -Wunused \
+-Wno-error=unused-parameter \
 -Wunused-result \
 "
 
@@ -196,6 +197,13 @@ AM_CONDITIONAL([HAVE_DOXYGEN],
 # __platform__
 AC_ARG_VAR([PLATFORM],
 	   [Select a platform to build for. E.g. posix, contiki, lwip])
+
+if test -z "$PLATFORM"; then
+      PLATFORM="posix"
+fi
+if test "$PLATFORM" = "posix"; then
+      AC_CONFIG_SUBDIRS([platform/posix/libev])
+fi
 
 # configure options
 # __tests__
