@@ -61,6 +61,8 @@ void coap_delete_all(coap_queue_t *queue);
 /** Creates a new node suitable for adding to the CoAP sendqueue. */
 coap_queue_t *coap_new_node(void);
 
+#define SZX_TO_BYTES(SZX) ((size_t)(1 << ((SZX) + 4)))
+
 struct coap_resource_t;
 struct coap_context_t;
 #ifndef WITHOUT_ASYNC
@@ -129,6 +131,15 @@ coap_new_message_id(coap_context_t *context) {
   context->message_id++;
   return HTONS(context->message_id);
 }
+
+/*
+ * CoAP stack context must be released with coap_free_context(). This function
+ * clears all entries from the receive queue and send queue and deletes the
+ * resources that have been registered with @p context, and frees the attached
+ * endpoints.
+ */
+void coap_free_context(coap_context_t *context);
+
 
 /**
  * Sends a confirmed CoAP message to given destination. The memory that is
@@ -289,7 +300,7 @@ coap_tid_t coap_retransmit(coap_context_t *context, coap_queue_t *node);
  * returned and a new node with the parsed PDU is added to the receive queue in
  * the specified context object.
  */
-int coap_read(coap_context_t *context);
+int coap_read(coap_context_t *context, coap_endpoint_t *ep);
 
 /**
  * Parses and interprets a CoAP message with context @p ctx. This function

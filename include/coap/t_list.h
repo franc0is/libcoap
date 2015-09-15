@@ -31,7 +31,6 @@
 #ifndef _DTLS_LIST_H_
 #define _DTLS_LIST_H_
 
-#ifndef WITH_CONTIKI
 #include "uthash.h"
 #include "utlist.h"
 
@@ -137,10 +136,6 @@ list_item_next(void *item)
 {
   return item == NULL? NULL: ((struct list *)item)->next;
 }
-
-#else /* WITH_CONTIKI */
-#include "list.h"
-#endif /* WITH_CONTIKI */
 
 #endif /* _DTLS_LIST_H_ */
 

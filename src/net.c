@@ -11,9 +11,9 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <errno.h>
-//#ifdef HAVE_LIMITS_H FIXME
+#ifdef HAVE_LIMITS_H
 #include <limits.h>
-//#endif
+#endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #elif HAVE_SYS_UNISTD_H
@@ -109,16 +109,6 @@
 /** creates a Qx.FRAC_BITS from COAP_DEFAULT_ACK_TIMEOUT */
 #define ACK_TIMEOUT Q(FRAC_BITS, COAP_DEFAULT_ACK_TIMEOUT)
 
-static inline coap_queue_t *
-coap_malloc_node(void) {
-  return (coap_queue_t *)coap_malloc_type(COAP_NODE, sizeof(coap_queue_t));
-}
-
-static inline void
-coap_free_node(coap_queue_t *node) {
-  coap_free_type(COAP_NODE, node);
-}
-
 unsigned int
 coap_adjust_basetime(coap_context_t *ctx, coap_tick_t now) {
   unsigned int result = 0;
@@ -199,7 +189,7 @@ coap_delete_node(coap_queue_t *node) {
     return 0;
 
   coap_delete_pdu(node->pdu);
-  coap_free_node(node);
+  coap_free_type(COAP_NODE, node);
 
   return 1;
 }
@@ -216,7 +206,7 @@ coap_delete_all(coap_queue_t *queue) {
 coap_queue_t *
 coap_new_node(void) {
   coap_queue_t *node;
-  node = coap_malloc_node();
+  node = (coap_queue_t *) coap_malloc_type(COAP_NODE, sizeof(coap_queue_t));
 
   if ( ! node ) {
 #ifndef NDEBUG
@@ -255,12 +245,14 @@ coap_pop_next( coap_context_t *context ) {
 
 #ifdef COAP_DEFAULT_WKC_HASHKEY
 /** Checks if @p Key is equal to the pre-defined hash key for.well-known/core. */
-#define is_wkc(Key)							\
-  (memcmp((Key), COAP_DEFAULT_WKC_HASHKEY, sizeof(coap_key_t)) == 0)
+static int
+is_wkc(coap_key_t k) {
+  return (memcmp(k, COAP_DEFAULT_WKC_HASHKEY, sizeof(coap_key_t)) == 0);
+}
 #else
 /* Implements a singleton to store a hash key for the .wellknown/core
  * resources. */
-int
+static int
 is_wkc(coap_key_t k) {
   static coap_key_t wkc;
   static unsigned char _initialized = 0;
@@ -326,11 +318,10 @@ coap_send_ack(coap_context_t *context,
   return result;
 }
 
-static coap_tid_t
-coap_send_impl(coap_context_t *context,
-	       const coap_endpoint_t *local_interface,
-	       const coap_address_t *dst,
-	       coap_pdu_t *pdu) {
+coap_tid_t
+coap_send(coap_context_t *context, const coap_endpoint_t *local_interface,
+          const coap_address_t *dst, coap_pdu_t *pdu) {
+
   ssize_t bytes_written;
   coap_tid_t id = COAP_INVALID_TID;
 
@@ -344,8 +335,8 @@ coap_send_impl(coap_context_t *context,
     return COAP_DROPPED_RESPONSE;
   }
 
-  bytes_written = context->network_send(context, local_interface, dst,
-                                        (unsigned char *)pdu->hdr, pdu->length);
+  bytes_written = local_interface->network_send(context, local_interface, dst,
+                                                pdu);
 
   if (bytes_written >= 0) {
     coap_transaction_id(dst, pdu, &id);
@@ -357,20 +348,10 @@ coap_send_impl(coap_context_t *context,
 }
 
 coap_tid_t
-coap_send(coap_context_t *context,
-	  const coap_endpoint_t *local_interface,
-	  const coap_address_t *dst,
-	  coap_pdu_t *pdu) {
-  return coap_send_impl(context, local_interface, dst, pdu);
-}
-
-coap_tid_t
-coap_send_error(coap_context_t *context,
-		coap_pdu_t *request,
-		const coap_endpoint_t *local_interface,
-		const coap_address_t *dst,
-		unsigned char code,
-		coap_opt_filter_t opts) {
+coap_send_error(coap_context_t *context, coap_pdu_t *request,
+                const coap_endpoint_t *local_interface,
+                const coap_address_t *dst, unsigned char code,
+                coap_opt_filter_t opts) {
   coap_pdu_t *response;
   coap_tid_t result = COAP_INVALID_TID;
 
@@ -457,10 +438,10 @@ coap_send_confirmed(coap_context_t *context,
     return COAP_INVALID_TID;
   }
 
-  node->id = coap_send_impl(context, local_interface, dst, pdu);
+  node->id = coap_send(context, local_interface, dst, pdu);
   if (COAP_INVALID_TID == node->id) {
     debug("coap_send_confirmed: error sending pdu\n");
-    coap_free_node(node);
+    coap_free_type(COAP_NODE, node);
     return COAP_INVALID_TID;
   }
 
@@ -502,7 +483,6 @@ coap_send_confirmed(coap_context_t *context,
 
 coap_tid_t
 coap_retransmit(coap_context_t *context, coap_queue_t *node) {
-
   if (!context || !node)
     return COAP_INVALID_TID;
 
@@ -519,9 +499,7 @@ coap_retransmit(coap_context_t *context, coap_queue_t *node) {
     debug("** retransmission #%d of transaction %d\n",
 	  node->retransmit_cnt, NTOHS(node->pdu->hdr->id));
 
-    node->id = coap_send_impl(context, &node->local_if,
-                              &node->remote, node->pdu);
-
+    node->id = coap_send(context, &node->local_if, &node->remote, node->pdu);
     return node->id;
   }
 
@@ -549,23 +527,19 @@ coap_retransmit(coap_context_t *context, coap_queue_t *node) {
 void coap_dispatch(coap_context_t *context, coap_queue_t *rcvd);
 
 int
-coap_read( coap_context_t *ctx ) {
+coap_read(coap_context_t *ctx, coap_endpoint_t *ep) {
   ssize_t bytes_read = -1;
   coap_packet_t *packet;
-  coap_address_t src;
   int result = -1;		/* the value to be returned */
 
-  coap_address_init(&src);
+  bytes_read = ep->network_read(ep, &packet);
 
-  bytes_read = ctx->network_read(ctx->endpoint, &packet);
-
-  if ( bytes_read < 0 ) {
-    warn("coap_read: recvfrom");
+  if (bytes_read < 0) {
+    //warn("coap_read: recvfrom");
   } else {
     result = coap_handle_message(ctx, packet);
+    coap_free_packet(packet);
   }
-
-  coap_free_packet(packet);
 
   return result;
 }
@@ -604,7 +578,13 @@ coap_handle_message(coap_context_t *ctx,
   /* from this point, the result code indicates that */
   result = RESULT_ERR;
 
+#if defined(WITH_LWIP)
+  node->pdu = coap_pdu_from_pbuf(coap_packet_extract_pbuf(packet));
+#elif defined(ST_NODE)
+  node->pdu = coap_pdu_from_mbuf(coap_packet_extract_mbuf(packet));
+#else
   node->pdu = coap_pdu_init(0, 0, 0, msg_len);
+#endif
   if (!node->pdu) {
     goto error;
   }

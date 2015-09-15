@@ -3,7 +3,7 @@
  * Copyright (C) 2010--2014 Olaf Bergmann <bergmann@tzi.org>
  *
  * This file is part of the CoAP library libcoap. Please see
- * README for terms of use.
+ * README for terms of use. 
  */
 
 #include "coap_config.h"
@@ -27,24 +27,28 @@
 
 #include "platform_utils.h"
 
+#ifndef CUSTOM_COAP_PDU_HANDLING
 void
 coap_pdu_clear(coap_pdu_t *pdu, size_t size) {
   assert(pdu);
 
   pdu->max_delta = 0;
+  pdu->max_size = size;
+  pdu->length = sizeof(coap_hdr_t);
+  /* data is NULL unless explicitly set by coap_add_data() */
   pdu->data = NULL;
+
   memset(pdu->hdr, 0, size);
   pdu->max_size = size;
   pdu->hdr->version = COAP_DEFAULT_VERSION;
-
-  /* data is NULL unless explicitly set by coap_add_data() */
-  pdu->length = sizeof(coap_hdr_t);
+  pdu->hdr->token_length = 0;
 }
 
 coap_pdu_t *
 coap_pdu_init(unsigned char type, unsigned char code,
 	      unsigned short id, size_t size) {
   coap_pdu_t *pdu;
+
   assert(size <= COAP_MAX_PDU_SIZE);
   /* Size must be large enough to fit the header. */
   if (size < sizeof(coap_hdr_t) || size > COAP_MAX_PDU_SIZE)
@@ -52,19 +56,20 @@ coap_pdu_init(unsigned char type, unsigned char code,
 
   /* size must be large enough for hdr */
   pdu = coap_malloc_type(COAP_PDU, sizeof(coap_pdu_t));
-  if (!pdu) return NULL;
+  if (!pdu)
+    return NULL;
+
   pdu->hdr = coap_malloc_type(COAP_PDU_BUF, size);
-  if (pdu->hdr == NULL) {
+  if (!pdu->hdr) {
     coap_free_type(COAP_PDU, pdu);
-    pdu = NULL;
+    return NULL;
   }
 
-  if (pdu) {
-    coap_pdu_clear(pdu, size);
-    pdu->hdr->id = id;
-    pdu->hdr->type = type;
-    pdu->hdr->code = code;
-  }
+  coap_pdu_clear(pdu, size);
+  pdu->hdr->id = id;
+  pdu->hdr->type = type;
+  pdu->hdr->code = code;
+
   return pdu;
 }
 
@@ -91,6 +96,8 @@ coap_delete_pdu(coap_pdu_t *pdu) {
   }
 }
 
+#endif /* WITH_CUSTOM_PDU_HANDLING */
+
 int
 coap_add_token(coap_pdu_t *pdu, size_t len, const unsigned char *data) {
   const size_t HEADERLENGTH = len + 4;
@@ -99,8 +106,9 @@ coap_add_token(coap_pdu_t *pdu, size_t len, const unsigned char *data) {
     return 0;
 
   pdu->hdr->token_length = len;
-  if (len)
+  if (len) {
     memcpy(pdu->hdr->token, data, len);
+  }
   pdu->max_delta = 0;
   pdu->length = HEADERLENGTH;
   pdu->data = NULL;
@@ -315,6 +323,7 @@ coap_pdu_parse(unsigned char *data, size_t length, coap_pdu_t *pdu) {
     goto discard;
   }
 
+#ifndef WITH_LWIP
   /* Copy message id in network byte order, so we can easily write the
    * response back to the network. */
   memcpy(&pdu->hdr->id, data + 2, 2);
@@ -322,9 +331,10 @@ coap_pdu_parse(unsigned char *data, size_t length, coap_pdu_t *pdu) {
   /* append data (including the Token) to pdu structure */
   memcpy(pdu->hdr + 1, data + sizeof(coap_hdr_t), length - sizeof(coap_hdr_t));
   pdu->length = length;
-
+ 
   /* Finally calculate beginning of data block and thereby check integrity
    * of the PDU structure. */
+#endif
 
   /* skip header + token */
   length -= (pdu->hdr->token_length + sizeof(coap_hdr_t));

@@ -9,8 +9,6 @@
 #ifndef _COAP_IO_H_
 #define _COAP_IO_H_
 
-#include "coap_config.h"
-
 #ifdef HAVE_ASSERT_H
 #include <assert.h>
 #else
@@ -24,54 +22,23 @@
 # include <sys/types.h>
 #endif
 
-#include "address.h"
-
-#define SIN6(A) ((struct sockaddr_in6 *)(A))
-
-#ifdef __GNUC__
-#define UNUSED_PARAM __attribute__ ((unused))
-#else /* not a GCC */
-#define UNUSED_PARAM
-#endif /* GCC */
-
-/**
- * Abstract handle that is used to identify a local network interface.
- */
-typedef int coap_if_handle_t;
-
 /** Invalid interface handle */
 #define COAP_IF_INVALID -1
-
-struct coap_packet_t;
-typedef struct coap_packet_t coap_packet_t;
-
-struct coap_context_t;
-
-/**
- * Abstraction of virtual endpoint that can be attached to coap_context_t. The
- * tuple (handle, addr) must uniquely identify this endpoint.
- */
-typedef struct coap_endpoint_t {
-#if defined(WITH_POSIX) || defined(WITH_CONTIKI)
-  union {
-    int fd;       /**< on POSIX systems */
-    void *conn;   /**< opaque connection (e.g. uip_conn in Contiki) */
-  } handle;       /**< opaque handle to identify this endpoint */
-#endif /* WITH_POSIX or WITH_CONTIKI */
-
-#ifdef WITH_LWIP
-  struct udp_pcb *pcb;
-#endif /* WITH_LWIP */
-
-  coap_address_t addr; /**< local interface address */
-  int ifindex;
-  int flags;
-} coap_endpoint_t;
 
 #define COAP_ENDPOINT_NOSEC 0x00
 #define COAP_ENDPOINT_DTLS  0x01
 
+#include "pdu.h"
 #include "platform_io.h"
+
+struct coap_context_t;
+typedef struct coap_context_t coap_context_t;
+
+struct coap_packet_t;
+typedef struct coap_packet_t coap_packet_t;
+
+struct coap_endpoint_t;
+typedef struct coap_endpoint_t coap_endpoint_t;
 
 coap_endpoint_t *coap_new_endpoint(const coap_address_t *addr, int flags);
 
@@ -84,16 +51,14 @@ void coap_free_endpoint(coap_endpoint_t *ep);
  * @param context          The calling CoAP context.
  * @param local_interface  The local interface to send the data.
  * @param dst              The address of the receiver.
- * @param data             The data to send.
- * @param datalen          The actual length of @p data.
+ * @param pdu              The pdu which should be send.
  *
  * @return                 The number of bytes written on success, or a value
  *                         less than zero on error.
  */
-ssize_t coap_network_send(struct coap_context_t *context,
+typedef ssize_t (*coap_network_send_t)(coap_context_t *context,
                           const coap_endpoint_t *local_interface,
-                          const coap_address_t *dst,
-                          unsigned char *data, size_t datalen);
+                          const coap_address_t *dst, const coap_pdu_t *pdu);
 
 /**
  * Function interface for reading data. This function returns the number of
@@ -108,13 +73,38 @@ ssize_t coap_network_send(struct coap_context_t *context,
  * @return       The number of bytes received on success, or a value less than
  *               zero on error.
  */
-ssize_t coap_network_read(coap_endpoint_t *ep, coap_packet_t **packet);
+typedef ssize_t (*coap_network_read_t)(coap_endpoint_t *ep, coap_packet_t **packet);
+
+/**
+ * Abstraction of virtual endpoint that can be attached to coap_context_t. The
+ * tuple (handle, addr) must uniquely identify this endpoint.
+ */
+struct coap_endpoint_t {
+  coap_address_t addr; /**< local interface address */
+  int ifindex;
+  int flags;
+  coap_network_read_t network_read;
+  coap_network_send_t network_send;
+  PLATFORM_ENDPOINT_PROPERTIES
+};
+
+struct coap_packet_t {
+  coap_address_t src;       /**< the packet's source address */
+  coap_address_t dst;       /**< the packet's destination address */
+  const coap_endpoint_t *interface;
+
+  int ifindex;
+  void *session;            /**< opaque session data */
+
+  size_t length;            /**< length of payload */
+  unsigned char payload[];  /**< payload */
+};
 
 #ifndef coap_mcast_interface
 # define coap_mcast_interface(Local) 0
 #endif
 
-
+/** Allocates store for a packet */
 coap_packet_t *coap_malloc_packet(void);
 
 /**

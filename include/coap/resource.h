@@ -66,6 +66,7 @@ typedef struct coap_resource_t {
                                   *   been notified of the last change */
   unsigned int observable:1;     /**< can be observed */
   unsigned int cacheable:1;      /**< can be cached */
+  unsigned int dynamic:1;        /**< should be freed */
 
   /**
    * Used to store handlers for the four coap methods @c GET, @c POST, @c PUT,
@@ -94,6 +95,10 @@ typedef struct coap_resource_t {
   str uri;
   int flags;
 
+  /**
+   * A pointer to user data.
+   */
+  void *pdata;
 } coap_resource_t;
 
 /**
@@ -139,6 +144,14 @@ int coap_delete_resource(coap_context_t *context, coap_key_t key);
 void coap_delete_all_resources(coap_context_t *context);
 
 /**
+ * Deletes all resources from given @p context which uri matches given @p pattern.
+ *
+ * @param context The CoAP context with the resources to be deleted.
+ * @param pattern URI pattern to match
+ */
+void coap_delete_resource_by_pattern(coap_context_t *context, const char *pattern);
+
+/**
  * Registers a new attribute with the given @p resource. As the
  * attributes str fields will point to @p name and @p val the
  * caller must ensure that these pointers are valid during the
@@ -182,6 +195,23 @@ coap_attr_t *coap_find_attr(coap_resource_t *resource,
  *
  */
 void coap_delete_attr(coap_attr_t *attr);
+
+/**
+ * Associates user data with the given @p resource.
+ *
+ * @param resource The resource to which the data should be associated.
+ * @param p a pointer to user data
+ */
+void coap_set_user_data(coap_resource_t *resource, void *p);
+
+/**
+ * Returns pointer to user data associated with a given @p
+ * resource.
+ *
+ * @param resource The resource to get the user data.
+ * @return A pointer to user data or @c NULL if no data was associated.
+ */
+void *coap_get_user_data(coap_resource_t *resource);
 
 /**
  * Status word to encode the result of conditional print or copy operations such

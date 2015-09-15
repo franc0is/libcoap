@@ -15,13 +15,30 @@
 #define _PDU_H_
 
 #include "uri.h"
+#include <stdint.h>
 
-#ifdef WITH_LWIP
-#include <lwip/pbuf.h>
+/* pre-defined constants that reflect defaults for CoAP */
+
+#ifndef COAP_DEFAULT_RESPONSE_TIMEOUT
+#define COAP_DEFAULT_RESPONSE_TIMEOUT  3 /* response timeout in seconds */
 #endif
 
-#define COAP_DEFAULT_PORT      5683 /* CoAP default UDP port */
-#define COAP_DEFAULT_MAX_AGE     60 /* default maximum object lifetime in seconds */
+#ifndef COAP_DEFAULT_MAX_RETRANSMIT
+#define COAP_DEFAULT_MAX_RETRANSMIT    3 /* max number of retransmissions */
+#endif
+
+#ifndef COAP_DEFAULT_PORT
+#define COAP_DEFAULT_PORT           5683 /* CoAP default UDP port */
+#endif
+
+#ifndef COAP_SECURE_PORT
+#define COAP_SECURE_PORT            5684 /* CoAP DTLS-secured UDP port */
+#endif
+
+#ifndef COAP_DEFAULT_MAX_AGE
+#define COAP_DEFAULT_MAX_AGE          60 /* default maximum object lifetime in seconds */
+#endif
+
 #ifndef COAP_MAX_PDU_SIZE
 #define COAP_MAX_PDU_SIZE      1400 /* maximum size of a CoAP PDU */
 #endif /* COAP_MAX_PDU_SIZE */
@@ -94,6 +111,8 @@
  */
 #define COAP_RESPONSE_CODE(N) (((N)/100 << 5) | (N)%100)
 
+#define COAP_RESPONSE_CODE2(N) (((N) >> 5)*100 + ((N) & 0x1f))
+
 /* Determines the class of response code C */
 #define COAP_RESPONSE_CLASS(C) (((C) >> 5) & 0xFF)
 
@@ -122,17 +141,32 @@ char *coap_response_phrase(unsigned char code);
 #if 0 /* this does not exist any more */
 #define COAP_RESPONSE_100      40 /* 100 Continue */
 #endif
-#define COAP_RESPONSE_200      COAP_RESPONSE_CODE(200)  /* 2.00 OK */
-#define COAP_RESPONSE_201      COAP_RESPONSE_CODE(201)  /* 2.01 Created */
-#define COAP_RESPONSE_304      COAP_RESPONSE_CODE(203)  /* 2.03 Valid */
-#define COAP_RESPONSE_400      COAP_RESPONSE_CODE(400)  /* 4.00 Bad Request */
-#define COAP_RESPONSE_404      COAP_RESPONSE_CODE(404)  /* 4.04 Not Found */
-#define COAP_RESPONSE_405      COAP_RESPONSE_CODE(405)  /* 4.05 Method Not Allowed */
-#define COAP_RESPONSE_415      COAP_RESPONSE_CODE(415)  /* 4.15 Unsupported Media Type */
-#define COAP_RESPONSE_500      COAP_RESPONSE_CODE(500)  /* 5.00 Internal Server Error */
-#define COAP_RESPONSE_501      COAP_RESPONSE_CODE(501)  /* 5.01 Not Implemented */
-#define COAP_RESPONSE_503      COAP_RESPONSE_CODE(503)  /* 5.03 Service Unavailable */
-#define COAP_RESPONSE_504      COAP_RESPONSE_CODE(504)  /* 5.04 Gateway Timeout */
+#define COAP_RESPONSE_200                COAP_RESPONSE_CODE(200)  /* 2.00 OK */
+#define COAP_RESPONSE_OK                 COAP_RESPONSE_200
+#define COAP_RESPONSE_201                COAP_RESPONSE_CODE(201)  /* 2.01 Created */
+#define COAP_RESPONSE_CREATED            COAP_RESPONSE_201
+#define COAP_RESPONSE_203                COAP_RESPONSE_CODE(203)  /* 2.03 Valid */
+#define COAP_RESPONSE_VALID              COAP_RESPONSE_203
+#define COAP_RESPONSE_204                COAP_RESPONSE_CODE(204)  /* 2.04 Valid */
+#define COAP_RESPONSE_CHANGED            COAP_RESPONSE_204
+#define COAP_RESPONSE_205                COAP_RESPONSE_CODE(205)  /* 2.05 Content */
+#define COAP_RESPONSE_CONTENT            COAP_RESPONSE_205
+#define COAP_RESPONSE_400                COAP_RESPONSE_CODE(400)  /* 4.00 Bad Request */
+#define COAP_RESPONSE_BAD_REQUEST        COAP_RESPONSE_400
+#define COAP_RESPONSE_404                COAP_RESPONSE_CODE(404)  /* 4.04 Not Found */
+#define COAP_RESPONSE_NOT_FOUND          COAP_RESPONSE_404
+#define COAP_RESPONSE_405                COAP_RESPONSE_CODE(405)  /* 4.05 Method Not Allowed */
+#define COAP_RESPONSE_METHOD_NOT_ALLOWED COAP_RESPONSE_405
+#define COAP_RESPONSE_415                COAP_RESPONSE_CODE(415)  /* 4.15 Unsupported Media Type */
+#define COAP_RESPONSE_UNSP_MEDIA_TYPE    COAP_RESPONSE_415
+#define COAP_RESPONSE_500                COAP_RESPONSE_CODE(500)  /* 5.00 Internal Server Error */
+#define COAP_RESPONSE_INT_SRV_ERR        COAP_RESPONSE_500
+#define COAP_RESPONSE_501                COAP_RESPONSE_CODE(501)  /* 5.01 Not Implemented */
+#define COAP_RESPONSE_NOT_IMPL           COAP_RESPONSE_501
+#define COAP_RESPONSE_503                COAP_RESPONSE_CODE(503)  /* 5.03 Service Unavailable */
+#define COAP_RESPONSE_SERVICE_UNAVAIL    COAP_RESPONSE_503
+#define COAP_RESPONSE_504                COAP_RESPONSE_CODE(504)  /* 5.04 Gateway Timeout */
+#define COAP_RESPONSE_GATEWAY_TIMEOUT    COAP_RESPONSE_504
 #if 0  /* these response codes do not have a valid code any more */
 #  define COAP_RESPONSE_X_240    240   /* Token Option required by server */
 #  define COAP_RESPONSE_X_241    241   /* Uri-Authority Option required by server */
@@ -148,6 +182,7 @@ char *coap_response_phrase(unsigned char code);
 #define COAP_MEDIATYPE_APPLICATION_RDF_XML       43 /* application/rdf+xml */
 #define COAP_MEDIATYPE_APPLICATION_EXI           47 /* application/exi  */
 #define COAP_MEDIATYPE_APPLICATION_JSON          50 /* application/json  */
+#define COAP_MEDIATYPE_APPLICATION_MSGPACK       59 /* application/x-msgpack  */
 #define COAP_MEDIATYPE_APPLICATION_CBOR          60 /* application/cbor  */
 
 /* Note that identifiers for registered media types are in the range 0-65535. We
@@ -223,7 +258,7 @@ typedef struct {
  * Header structure for CoAP PDUs
  */
 
-typedef struct {
+typedef struct coap_pdu_t {
   size_t max_size;          /**< allocated storage for options and data */
   coap_hdr_t *hdr;          /**< Address of the first byte of the CoAP message.
                              *   This may or may not equal (coap_hdr_t*)(pdu+1)
@@ -233,15 +268,8 @@ typedef struct {
   unsigned short length;    /**< PDU length (including header, options, data) */
   unsigned char *data;      /**< payload */
 
-#ifdef WITH_LWIP
-  struct pbuf *pbuf;        /**< lwIP PBUF. The package data will always reside
-                             *    inside the pbuf's payload, but this pointer
-                             *    has to be kept because no exact offset can be
-                             *    given. This field must not be accessed from
-                             *    outside, because the pbuf's reference count
-                             *    is checked to be 1 when the pbuf is assigned
-                             *    to the pdu, and the pbuf stays exclusive to
-                             *    this pdu. */
+#ifdef CUSTOM_PDU_FIELDS
+  CUSTOM_PDU_FIELDS
 #endif
 } coap_pdu_t;
 
@@ -250,24 +278,9 @@ typedef struct {
  */
 #define COAP_OPTION(node) ((coap_option *)(node)->options)
 
-#ifdef WITH_LWIP
-/**
- * Creates a CoAP PDU from an lwIP @p pbuf, whose reference is passed on to this
- * function.
- *
- * The pbuf is checked for being contiguous, and for having only one reference.
- * The reference is stored in the PDU and will be freed when the PDU is freed.
- *
- * (For now, these are fatal errors; in future, a new pbuf might be allocated,
- * the data copied and the passed pbuf freed).
- *
- * This behaves like coap_pdu_init(0, 0, 0, pbuf->tot_len), and afterwards
- * copying the contents of the pbuf to the pdu.
- *
- * @return A pointer to the new PDU object or @c NULL on error.
- */
-coap_pdu_t * coap_pdu_from_pbuf(struct pbuf *pbuf);
-#endif
+#define COAP_PDU_CODE(pdu) ((pdu)->hdr->code)
+#define COAP_PDU_TYPE(pdu) ((pdu)->hdr->type)
+#define COAP_PDU_ID(pdu)   ((pdu)->hdr->id)
 
 /**
  * Creates a new CoAP PDU of given @p size (must be large enough to hold the
@@ -383,5 +396,13 @@ int coap_add_data(coap_pdu_t *pdu,
 int coap_get_data(coap_pdu_t *pdu,
                   size_t *len,
                   unsigned char **data);
+
+/**
+ * Return 1 if pdu contains payload, 0 otherwise.
+ */
+static inline int coap_has_data(coap_pdu_t *pdu)
+{
+	return (pdu->data != NULL);
+}
 
 #endif /* _PDU_H_ */

@@ -29,8 +29,8 @@ EXTRA_DIST = \
 
 # FIXME Only add for posix
 AM_CFLAGS = -I @top_builddir@/include/coap/ \
-            -I @top_builddir@/platform/@PLATFORM@/
-            $(WARNING_CFLAGS) -std=c99
+            -I @top_builddir@/platform/@PLATFORM@/ \
+             $(WARNING_CFLAGS) -std=c99
 
 # FIXME Only add for posix
 SUBDIRS = . platform/posix/libev $(DOC_DIR) tests examples
@@ -59,7 +59,7 @@ libcoap_@LIBCOAP_API_VERSION@_la_SOURCES = \
   src/block.c \
   src/coap_io.c \
   src/coap_context.c \
-  src/debug.c \
+  src/coap_debug.c \
   src/encode.c \
   src/hashkey.c \
   src/mem.c \

@@ -3,10 +3,11 @@
  * Copyright (C) 2010--2012,2014--2015 Olaf Bergmann <bergmann@tzi.org>
  *
  * This file is part of the CoAP library libcoap. Please see
- * README for terms of use. 
+ * README for terms of use.
  */
 
 #include "coap_config.h"
+#include "coap_io.h"
 
 #if defined(HAVE_STRNLEN) && defined(__GNUC__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE 1
@@ -29,6 +30,7 @@
 #include <time.h>
 #endif
 
+#include "coap_time.h"
 #include "block.h"
 #include "debug.h"
 #include "encode.h"
@@ -41,7 +43,7 @@
 #include "net/ip/uip-debug.h"
 #endif
 
-static coap_log_t maxlog = LOG_WARNING;	/* default maximum log level */
+static coap_log_t maxlog = LOG_DEBUG;	/* default maximum log level */
 
 const char *coap_package_name(void) {
   return PACKAGE_NAME;
@@ -51,7 +53,7 @@ const char *coap_package_version(void) {
   return PACKAGE_STRING;
 }
 
-coap_log_t 
+coap_log_t
 coap_get_log_level(void) {
   return maxlog;
 }
@@ -63,7 +65,7 @@ coap_set_log_level(coap_log_t level) {
 
 /* this array has the same order as the type log_t */
 static char *loglevels[] = {
-  "EMRG", "ALRT", "CRIT", "ERR", "WARN", "NOTE", "INFO", "DEBG" 
+  "EMRG", "ALRT", "CRIT", "ERR", "WARN", "NOTE", "INFO", "DEBG"
 };
 
 #ifdef HAVE_TIME_H
@@ -81,7 +83,7 @@ print_timestamp(char *s, size_t len, coap_tick_t t) {
 static inline size_t
 print_timestamp(char *s, size_t len, coap_tick_t t) {
 #ifdef HAVE_SNPRINTF
-  return snprintf(s, len, "%u.%03u", 
+  return snprintf(s, len, "%u.%03u",
 		  (unsigned int)coap_ticks_to_rt(t),
 		  (unsigned int)(t % COAP_TICKS_PER_SECOND));
 #else /* HAVE_SNPRINTF */
@@ -95,12 +97,12 @@ print_timestamp(char *s, size_t len, coap_tick_t t) {
 #ifndef NDEBUG
 
 #ifndef HAVE_STRNLEN
-/** 
- * A length-safe strlen() fake. 
- * 
+/**
+ * A length-safe strlen() fake.
+ *
  * @param s      The string to count characters != 0.
  * @param maxlen The maximum length of @p s.
- * 
+ *
  * @return The length of @p s.
  */
 static inline size_t
@@ -149,10 +151,6 @@ print_readable( const unsigned char *data, unsigned int len,
   return cnt;
 }
 
-#ifndef min
-#define min(a,b) ((a) < (b) ? (a) : (b))
-#endif
-
 size_t
 coap_print_addr(const struct coap_address_t *addr, unsigned char *buf, size_t len) {
 #ifdef HAVE_ARPA_INET_H
@@ -161,7 +159,7 @@ coap_print_addr(const struct coap_address_t *addr, unsigned char *buf, size_t le
   unsigned char *p = buf;
 
   switch (addr->addr.sa.sa_family) {
-  case AF_INET: 
+  case AF_INET:
     addrptr = &addr->addr.sin.sin_addr;
     port = ntohs(addr->addr.sin.sin_port);
     break;
@@ -190,7 +188,7 @@ coap_print_addr(const struct coap_address_t *addr, unsigned char *buf, size_t le
   if (addr->addr.sa.sa_family == AF_INET6) {
     if (p < buf + len) {
       *p++ = ']';
-    } else 
+    } else
       return 0;
   }
 
@@ -253,28 +251,6 @@ coap_print_addr(const struct coap_address_t *addr, unsigned char *buf, size_t le
 #  define vfprintf(fd, ...) PRINTF(__VA_ARGS__)
 # endif /* HAVE_VPRINTF */
 #endif /* WITH_CONTIKI */
-
-/** Returns a textual description of the message type @p t. */
-static const char *
-msg_type_string(uint8_t t) {
-  static char *types[] = { "CON", "NON", "ACK", "RST", "???" };
-
-  return types[min(t, sizeof(types)/sizeof(char *) - 1)];
-}
-
-/** Returns a textual description of the method or response code. */
-static const char *
-msg_code_string(uint8_t c) {
-  static char *methods[] = { "0.00", "GET", "POST", "PUT", "DELETE", "PATCH" };
-  static char buf[5];
-
-  if (c < sizeof(methods)/sizeof(char *)) {
-    return methods[c];
-  } else {
-    snprintf(buf, sizeof(buf), "%u.%02u", c >> 5, c & 0x1f);
-    return buf;
-  }
-}
 
 /** Returns a textual description of the option name. */
 static const char *
@@ -449,7 +425,7 @@ coap_show_pdu(const coap_pdu_t *pdu) {
   }
 
   fprintf(COAP_DEBUG_FD, " ]");
-  
+
   if (coap_get_data((coap_pdu_t *)pdu, &data_len, &data)) {
 
     fprintf(COAP_DEBUG_FD, " :: ");
@@ -474,8 +450,8 @@ coap_show_pdu(const coap_pdu_t *pdu) {
 
 #endif /* NDEBUG */
 
-void 
-coap_log_impl(coap_log_t level, const char *format, ...) {
+void
+coap_log_impl(const char *file, int line, coap_log_t level, const char *format, ...) {
   char timebuf[32];
   coap_tick_t now;
   va_list ap;
@@ -483,8 +459,9 @@ coap_log_impl(coap_log_t level, const char *format, ...) {
 
   if (maxlog < level)
     return;
-  
-  log_fd = level <= LOG_CRIT ? COAP_ERR_FD : COAP_DEBUG_FD;
+
+  //log_fd = level <= LOG_CRIT ? COAP_ERR_FD : COAP_DEBUG_FD;
+  log_fd = stderr;
 
   coap_ticks(&now);
   if (print_timestamp(timebuf,sizeof(timebuf), now))

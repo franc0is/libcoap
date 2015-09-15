@@ -11,6 +11,10 @@
 
 #include <string.h>
 
+#ifndef MIN
+#define MIN(x , y)  (((x) < (y)) ? (x) : (y))
+#endif
+
 typedef struct {
   size_t length;    /* length of string */
   unsigned char *s; /* string data */
@@ -28,5 +32,13 @@ str *coap_new_string(size_t size);
  * Deletes the given string and releases any memory allocated.
  */
 void coap_delete_string(str *);
+
+/**
+ * Compare CoAP string with a null terminated string.
+ */
+static inline int coap_strcmp(const str *s1, const char *s2)
+{
+	return memcmp(s1->s, s2, MIN(s1->length, strlen(s2) - 1));
+}
 
 #endif /* _COAP_STR_H_ */

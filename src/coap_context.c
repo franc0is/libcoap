@@ -32,11 +32,7 @@
 #include "block.h"
 #include "net.h"
 #include "coap_timer.h"
-
-#ifdef WITH_CONTIKI // TODO Should be more abstracted. E.g. CONTEXT_SINGLETON
-unsigned char initialized = 0;
-coap_context_t the_coap_context;
-#endif
+#include "coap_io.h"
 
 #ifndef WITHOUT_OBSERVE
 static void notify_timer_cb(void *data) {
@@ -64,46 +60,21 @@ static void retransmit_timer_cb(void *data) {
   }
 }
 
-coap_context_t *
-coap_new_context(
-  const coap_address_t *listen_addr) {
+coap_context_t*
+coap_new_context(void) {
+
+  //FIXME: move this to coap_platform_init()?
   coap_timer_init();
-#ifndef WITH_CONTIKI
-  coap_context_t *c = coap_malloc_type(COAP_CONTEXT, sizeof( coap_context_t ) );
-#endif /* not WITH_CONTIKI */
-#ifdef WITH_CONTIKI
-  coap_context_t *c;
-
-  if (initialized)
-    return NULL;
-#endif /* WITH_CONTIKI */
-
-  if (!listen_addr) {
-    coap_log(LOG_EMERG, "no listen address specified\n");
-    return NULL;
-  }
-
   coap_clock_init();
-
   coap_tick_t now;
   coap_ticks(&now);
-  prng_init((ptrdiff_t)listen_addr ^ now);
+  prng_init((ptrdiff_t)now);
 
-#ifndef WITH_CONTIKI
+  coap_context_t *c = coap_malloc_type(COAP_CONTEXT, sizeof( coap_context_t ) );
   if (!c) {
-#ifndef NDEBUG
     coap_log(LOG_EMERG, "coap_init: malloc:\n");
-#endif
     return NULL;
   }
-#endif /* not WITH_CONTIKI */
-#ifdef WITH_CONTIKI
-  coap_memory_init();
-
-  c = &the_coap_context;
-  initialized = 1;
-#endif /* WITH_CONTIKI */
-
   memset(c, 0, sizeof( coap_context_t ) );
 
   /* initialize message id */
@@ -122,13 +93,12 @@ coap_new_context(
   coap_register_option(c, COAP_OPTION_BLOCK2);
   coap_register_option(c, COAP_OPTION_BLOCK1);
 
+#if 0
   c->endpoint = coap_new_endpoint(listen_addr, COAP_ENDPOINT_NOSEC);
   if (c->endpoint == NULL) {
     goto onerror;
   }
-
-  c->network_send = coap_network_send;
-  c->network_read = coap_network_read;
+#endif
 
 # ifndef WITHOUT_OBSERVE
   c->notify_timer = coap_new_timer(notify_timer_cb, (void *)c);
@@ -158,13 +128,6 @@ coap_free_context(coap_context_t *context) {
 #endif
 
   coap_delete_all_resources(context);
-
-  coap_free_endpoint(context->endpoint);
-#ifdef WITH_CONTIKI
-  memset(&the_coap_context, 0, sizeof(coap_context_t));
-  initialized = 0;
-#else
   coap_free_type(COAP_CONTEXT, context);
-#endif /* WITH_CONTIKI */
 }
 

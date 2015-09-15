@@ -240,7 +240,12 @@ coap_resource_t *
 coap_resource_init(const unsigned char *uri, size_t len, int flags) {
   coap_resource_t *r;
 
+#ifdef WITH_LWIP
+  r = (coap_resource_t *)memp_malloc(MEMP_COAP_RESOURCE);
+#endif
+#ifndef WITH_LWIP
   r = (coap_resource_t *)coap_malloc_type(COAP_RESOURCE, sizeof(coap_resource_t));
+#endif
   if (r) {
     memset(r, 0, sizeof(coap_resource_t));
 
@@ -317,6 +322,16 @@ coap_delete_attr(coap_attr_t *attr) {
 }
 
 void
+coap_set_user_data(coap_resource_t *resource, void *p) {
+  resource->pdata = p;
+}
+
+void *
+coap_get_user_data(coap_resource_t *resource) {
+  return resource->pdata;
+}
+
+void
 coap_hash_request_uri(const coap_pdu_t *request, coap_key_t key) {
   coap_opt_iterator_t opt_iter;
   coap_opt_filter_t filter;
@@ -335,6 +350,12 @@ coap_hash_request_uri(const coap_pdu_t *request, coap_key_t key) {
 void
 coap_add_resource(coap_context_t *context, coap_resource_t *resource) {
   RESOURCES_ADD(context->resources, resource);
+// FIXME don't know what this dynamic stuff is, but it ain't working
+//  if (!resource->dynamic) {
+//    resource->uri.length = strlen(resource->uri.s);
+//    coap_hash_path(resource->uri.s, resource->uri.length, resource->key);
+//  }
+//  debug("Added resource 0x%02x%02x%02x%02x\n", resource->key[0], resource->key[1], resource->key[2], resource->key[3]);
 }
 
 static void
@@ -345,15 +366,21 @@ coap_free_resource(coap_resource_t *resource) {
   assert(resource);
 
   /* delete registered attributes */
-  LL_FOREACH_SAFE(resource->link_attr, attr, tmp) coap_delete_attr(attr);
+  LL_FOREACH_SAFE(resource->link_attr, attr, tmp) {
+	  coap_delete_attr(attr);
+  }
 
   if (resource->flags & COAP_RESOURCE_FLAGS_RELEASE_URI)
     coap_free(resource->uri.s);
 
   /* free all elements from resource->subscribers */
-  LL_FOREACH_SAFE(resource->subscribers, obs, otmp) coap_free_type(COAP_SUBSCRIPTION, obs);
+  LL_FOREACH_SAFE(resource->subscribers, obs, otmp) {
+	  coap_free_type(COAP_SUBSCRIPTION, obs);
+  }
 
-  coap_free_type(COAP_RESOURCE, resource);
+  if (resource->dynamic) {
+	  coap_free_type(COAP_RESOURCE, resource);
+  }
 }
  
 int
@@ -394,6 +421,25 @@ coap_delete_all_resources(coap_context_t *context) {
   }
 
   context->resources = NULL;
+}
+
+void
+coap_delete_resource_by_pattern(coap_context_t *context, const char *pattern) {
+   coap_resource_t *res;
+   coap_resource_t *rtmp;
+
+#ifdef COAP_RESOURCES_NOHASH
+  LL_FOREACH_SAFE(context->resources, res, rtmp) {
+#else
+  HASH_ITER(hh, context->resources, res, rtmp) {
+#endif
+     if (strstr((char *)res->uri.s, pattern)) {
+       /* remove resource from list */
+         RESOURCES_DELETE(context->resources, res);
+         /* and free its allocated memory */
+         coap_free_resource(res);
+     }
+  }
 }
 
 coap_resource_t *
@@ -529,7 +575,6 @@ coap_delete_observer(coap_resource_t *resource, const coap_address_t *observer,
 
   if (resource->subscribers && s) {
     LL_DELETE(resource->subscribers, s);
-
     coap_free_type(COAP_SUBSCRIPTION, s);
   }
 

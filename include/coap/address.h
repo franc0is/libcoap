@@ -59,6 +59,12 @@ int coap_address_isany(const coap_address_t *a);
 int coap_is_mcast(const coap_address_t *a);
 
 /**
+ * Fill an address structure with given address and port.
+ *
+ */
+int coap_address(const char *address, unsigned short port, coap_address_t *result);
+
+/**
  * Resets the given coap_address_t object @p addr to its default values. In
  * particular, the member size must be initialized to the available size for
  * storing addresses.
@@ -67,4 +73,8 @@ int coap_is_mcast(const coap_address_t *a);
  */
 void coap_address_init(coap_address_t *addr);
 
+/**
+ * Returns size of a given address object.
+ */
+int coap_address_size(const coap_address_t *a);
 #endif /* _COAP_ADDRESS_H_ */

@@ -53,7 +53,9 @@ typedef struct coap_context_t {
    * to sendqueue_basetime. */
   coap_tick_t sendqueue_basetime;
   coap_queue_t *sendqueue;
+#if 0
   coap_endpoint_t *endpoint;      /**< the endpoint used for listening  */
+#endif
 
 #ifdef WITH_CONTIKI
   struct uip_udp_conn *conn;      /**< uIP connection object */
@@ -76,20 +78,12 @@ typedef struct coap_context_t {
   unsigned int observe;
 
   coap_response_handler_t response_handler;
-
-  ssize_t (*network_send)(struct coap_context_t *context,
-                          const coap_endpoint_t *local_interface,
-                          const coap_address_t *dst,
-                          unsigned char *data, size_t datalen);
-
-  ssize_t (*network_read)(coap_endpoint_t *ep, coap_packet_t **packet);
-
 } coap_context_t;
 
 /**
  * Creates a new coap_context_t object that will hold the CoAP stack status.
  */
-coap_context_t *coap_new_context(const coap_address_t *listen_addr);
+coap_context_t *coap_new_context(void);
 
 /**
  * CoAP stack context must be released with coap_free_context(). This function

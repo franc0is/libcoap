@@ -34,6 +34,7 @@ src/.dirstamp
 src/.libs/
 src/*.o
 src/*.lo
+src/*.lst
 platform/**/.deps/
 platform/**/.dirstamp
 platform/**/.libs/

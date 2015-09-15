@@ -9,11 +9,7 @@
 #ifndef _COAP_ENCODE_H_
 #define _COAP_ENCODE_H_
 
-#if (BSD >= 199103) || defined(WITH_CONTIKI)
-# include <string.h>
-#else
-# include <strings.h>
-#endif
+#include <string.h>
 
 #define Nn 8  /* duplicate definition of N if built on sky motes */
 #define E 4

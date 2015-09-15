@@ -978,9 +978,9 @@ cmdline_method(char *arg) {
   return i;     /* note that we do not prevent illegal methods */
 }
 
-static coap_context_t *
-get_context(const char *node, const char *port) {
-  coap_context_t *ctx = NULL;
+static coap_endpoint_t *
+create_endpoint(const char *node, const char *port) {
+  coap_endpoint_t *ep = NULL;
   int s;
   struct addrinfo hints;
   struct addrinfo *result, *rp;
@@ -1005,24 +1005,25 @@ get_context(const char *node, const char *port) {
       addr.size = rp->ai_addrlen;
       memcpy(&addr.addr, rp->ai_addr, rp->ai_addrlen);
 
-      ctx = coap_new_context(&addr);
-      if (ctx) {
+      ep = coap_new_endpoint(&addr, 0);
+      if (ep) {
         /* TODO: output address:port for successful binding */
         goto finish;
       }
     }
   }
 
-  fprintf(stderr, "no context available for interface '%s'\n", node);
+  fprintf(stderr, "failed to create endpoint for interface '%s'\n", node);
 
   finish:
   freeaddrinfo(result);
-  return ctx;
+  return ep;
 }
 
 int
 main(int argc, char **argv) {
   coap_context_t  *ctx = NULL;
+  coap_endpoint_t *ep = NULL;
   coap_address_t dst;
   static char addr[INET6_ADDRSTRLEN];
   void *addrptr = NULL;
@@ -1146,18 +1147,24 @@ main(int argc, char **argv) {
     addrptr = &dst.addr.sin.sin_addr;
 
     /* create context for IPv4 */
-    ctx = get_context(node_str[0] == 0 ? "0.0.0.0" : node_str, port_str);
+    ep = create_endpoint(node_str[0] == 0 ? "0.0.0.0" : node_str, port_str);
     break;
   case AF_INET6:
     addrptr = &dst.addr.sin6.sin6_addr;
 
     /* create context for IPv6 */
-    ctx = get_context(node_str[0] == 0 ? "::" : node_str, port_str);
+    ep = create_endpoint(node_str[0] == 0 ? "::" : node_str, port_str);
     break;
   default:
     ;
   }
 
+  if (!ep) {
+    coap_log(LOG_EMERG, "cannot create endpoint\n");
+    return -1;
+  }
+
+  ctx = coap_new_context();
   if (!ctx) {
     coap_log(LOG_EMERG, "cannot create context\n");
     return -1;
@@ -1195,9 +1202,9 @@ main(int argc, char **argv) {
 #endif
 
   if (pdu->hdr->type == COAP_MESSAGE_CON)
-    tid = coap_send_confirmed(ctx, ctx->endpoint, &dst, pdu);
+    tid = coap_send_confirmed(ctx, ep, &dst, pdu);
   else
-    tid = coap_send(ctx, ctx->endpoint, &dst, pdu);
+    tid = coap_send(ctx, ep, &dst, pdu);
 
   if (pdu->hdr->type != COAP_MESSAGE_CON || tid == COAP_INVALID_TID)
     coap_delete_pdu(pdu);
@@ -1207,16 +1214,16 @@ main(int argc, char **argv) {
 
   while ( !(ready && coap_can_exit(ctx)) ) {
     FD_ZERO(&readfds);
-    FD_SET( ctx->endpoint->handle.fd, &readfds );
+    FD_SET(ep->fd, &readfds );
 
     tv.tv_sec = wait_seconds;
-    result = select(ctx->endpoint->handle.fd + 1, &readfds, 0, 0, &tv);
+    result = select(ep->fd + 1, &readfds, 0, 0, &tv);
 
     if ( result < 0 ) {   /* error */
       perror("select");
     } else if ( result > 0 ) {  /* read from socket */
-      if ( FD_ISSET( ctx->endpoint->handle.fd, &readfds ) ) {
-        coap_read( ctx );       /* read received data */
+      if ( FD_ISSET(ep->fd, &readfds ) ) {
+        coap_read( ctx, ep );       /* read received data */
         /* coap_dispatch( ctx );  /\* and dispatch PDUs from receivequeue *\/ */
       }
     } else { /* timeout */
@@ -1227,7 +1234,7 @@ main(int argc, char **argv) {
       }
       if (obs_wait && obs_wait <= now) {
         debug("clear observation relationship\n");
-        clear_obs(ctx, ctx->endpoint, &dst); /* FIXME: handle error case COAP_TID_INVALID */
+        clear_obs(ctx, ep, &dst); /* FIXME: handle error case COAP_TID_INVALID */
 
         /* make sure that the obs timer does not fire again */
         obs_wait = 0;
@@ -1239,7 +1246,8 @@ main(int argc, char **argv) {
   close_output();
 
   coap_delete_list(optlist);
-  coap_free_context( ctx );
+  coap_free_context(ctx);
+  coap_free_endpoint(ep);
 
   return 0;
 }
