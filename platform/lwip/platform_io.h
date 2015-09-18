@@ -1,4 +1,15 @@
+#ifndef _PLATFORM_IO_H_
+#define _PLATFORM_IO_H_
+
 #include <lwip/udp.h>
+
+typedef struct coap_endpoint_t {
+  struct udp_pcb *pcb;
+
+  coap_address_t addr; /**< local interface address */
+  int ifindex;
+  int flags;
+} coap_endpoint_t;
 
 /*
  * This is only included in coap_io.h instead of .c in order to be available for
@@ -21,3 +32,5 @@ struct coap_packet_t {
  */
 struct pbuf *coap_packet_extract_pbuf(coap_packet_t *packet);
 
+
+#endif /* _PLATFORM_IO_H_ */

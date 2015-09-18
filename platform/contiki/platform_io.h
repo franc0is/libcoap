@@ -3,6 +3,21 @@
 
 #include "uip.h"
 
+/**
+ * Abstraction of virtual endpoint that can be attached to coap_context_t. The
+ * tuple (handle, addr) must uniquely identify this endpoint.
+ */
+typedef struct coap_endpoint_t {
+  union {
+    int fd;       /**< on POSIX systems */
+    void *conn;   /**< opaque connection (e.g. uip_conn in Contiki) */
+  } handle;       /**< opaque handle to identify this endpoint */
+
+  coap_address_t addr; /**< local interface address */
+  int ifindex;
+  int flags;
+} coap_endpoint_t;
+
 /*
  * This is only included in coap_io.h instead of .c in order to be available for
  * sizeof in mem.c.
